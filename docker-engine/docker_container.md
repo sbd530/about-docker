@@ -188,45 +188,107 @@ curl -X GET http://127.0.0.1:80/
 
 ## 컨테이너 어플리케이션 구축
 
+- App 컨테이너와 DB 컨테이너를 생성하여 연동
+  
+- RDB 생성, 실행
+  - Windows cmd 는 `^`로 개행 가능
 ```shell
-
+docker run -d \
+--name wordpressdb \
+-e MYSQL_ROOT_PASSWORD=password \
+-e MYSQL_DATABASE=wordpress \
+mysql:5.7
+```
+- Wordpress 생성, 실행
+  - `-i -t` : attach 가능한 상태로 설정
+  - `-d` : Detached 모드로 컨테이너 실행. 백그라운드에서 동작하도록 설정. 입출력 X (bash 불가)
+  - `-p 80` : 컨테이터 80포트와 호스트의 포트 중 하나를 바인딩
+```shell
+docker run -d \
+-e WORDPRESS_DB_HOST=mysql \
+-e WORDPRESS_DB_USER=root \
+-e WORDPRESS_DB_PASSWORD=password \
+--name wordpress \
+--link wordpressdb:mysql \
+-p 80
+wordpress
+```
+- 호스트와 바인딩된 포트 확인
+  - `컨테이너 포트 -> 호스트 포트`
+```shell
+docker port wordpress
+80/tcp -> 0.0.0.0:57280
 ```
 
 ```shell
-
+http://localhost:57280/
+```
+- `-d` 옵션
+  - 컨테이너 내부에서 프로그램이 터미널을 차지하는 포그라운드로 실행된다.
+  - 터미널을 차지하는 포그라운드로써 동작하는 프로그램이 없으면 컨테이너는 시작되지 않는다.
+  - mysql 이미지는 컨테이너 실행시, 포그라운드로 실행되는 mysqld 가 동작하기 때문에 `-d` 를 준다.
+```shell
+docker run -d --name detach_test ubuntu:14.04
+docker ps -a
+CONTAINER ID   IMAGE                      COMMAND                  CREATED          STATUS                      PORTS                   NAMES
+829aa4dd7c58   ubuntu:14.04               "/bin/bash"              7 seconds ago    Exited (0) 6 seconds ago                            detach_test
+```
+- `-e` 옵션 : 컨테이너 환경변수 설정
+```shell
+...
+-e MYSQL_ROOT_PASSWORD=password
+...
 ```
 
 ```shell
-
+# ... -e MYSQL_ROOT_PASSWORD=password ...
+docker exec -i -t wordpressdb /bin/bash
+root@ce22516465db:/# echo $MYSQL_ROOT_PASSWORD
+password
+```
+- `-d`때문에 입출력이 불가능 -> `exec -i -t` 명령어로 내부에서 명령어를 실행하여 반환 받을 수 있다.
+  - bash 에 `exit` 명령을 줘도 컨테이너가 정지되지 않은 채 빠져나온다. 
+```shell
+docker exec wordpressdb ls /
+bin
+boot
+dev
+docker-entrypoint-initdb.d
+...
 ```
 
 ```shell
+docker exec -i -t wordpressdb /bin/bash
+root@ce22516465db:/# mysql -u root -p
+Enter password:
+Welcome to the MySQL monitor.  Commands end with ; or \g.
+Your MySQL connection id is 2
+Server version: 5.7.36 MySQL Community Server (GPL)
 
+...
+
+mysql>
+```
+- `--link` 옵션
+  - 내부 IP 알 필요 없이 항상 alias 로 접근하도록 설정.
+```shell
+...
+--link wordpressdb:mysql
+...
 ```
 
 ```shell
-
+docker exec wordpress curl mysql:3306 --silent
 ```
-
+- link 가 걸려있다는 것은 컨테이너 실행 순서의 의존성도 정의
 ```shell
-
+docker stop wordpress wordpressdb
+docker start wordpress
+Error response from daemon: Cannot link to a non running container: /wordpressdb AS /wordpress/mysql
+Error: failed to start containers: wordpress
 ```
 
-```shell
-
-```
-
-```shell
-
-```
-
-```shell
-
-```
-
-```shell
-
-```
+## 도커 볼륨
 
 ```shell
 
