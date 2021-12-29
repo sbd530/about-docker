@@ -132,7 +132,7 @@ docker stop ${docker ps -a -q}
 docker rm ${docker ps -a -q}
 ```
 
-# 컨테이너 노출
+## 컨테이너 노출
 
 - 컨테이너 가상 IP 주소 : 172.17.0.x의 IP를 순차적으로 할당
   - `172.17.0.2` : docker NAT IP, `127.0.0.1` : localhost
@@ -289,6 +289,135 @@ Error: failed to start containers: wordpress
 ```
 
 ## 도커 볼륨
+
+- 볼륨 
+  - mysql 컨테이너 등에 저장한 데이터는 컨테이너 삭제와 함께 사라진다.
+  - 도커 볼륨을 통해 영속성을 줄 수 있다.
+  - 볼륨을 통해 호스트와 볼륨을 공유하고, 볼륨 컨테이너를 활용하고, 도커가 관리하는 볼륨을 생성할 수 있다.
+
+### 호스트 볼륨 공유
+
+- DB, WAS 컨테이너 생성
+  - `-v [hostDirectory]:[containerDirectory]` : 서로 디렉터리 공유
+```shell
+docker run -d \
+--name wordpressdb_hostvolume \
+-e MYSQL_ROOT_PASSWORD=password \
+-e MYSQL_DATABASE=wordpress \
+-v /home/wordpress_db:/var/lib/mysql \
+mysql:5.7
+```
+
+```shell
+docker run -d \
+-e WORDPRESS_DB_PASSWORD=password \
+--name wordpress_hostvolume \
+--link wordpressdb_hostvolume:mysql \
+-p 80 \
+wordpress
+```
+- 컨테이너 삭제 후 호스트 확인
+```shell
+ls /home/wordpress_db
+docker rm wordpress_hostvolume wordpressdb_hostvolume
+ls /home/wordpress_db
+```
+- 역으로 호스트 디렉터리에 파일이 존재할 경우, 볼륨 생성시 모든 하위 디렉터리를 마운트한다.
+
+### 볼륨 컨테이너
+
+- 볼륨 공유하기
+  - `--volumes-from`
+```shell
+docker run -i -t \
+--name volumes_from_container \
+--volumes-from volume_override \
+ubuntu:14.04
+```
+
+```text
+                        --volume           --volumes-from
+[host-volume] <---> [volume-container] <---> [container1]
+                                       <---> [container2]
+```
+
+### 도커 볼륨
+
+```shell
+
+```
+
+```shell
+
+```
+
+```shell
+
+```
+
+```shell
+
+```
+
+```shell
+
+```
+
+```shell
+
+```
+
+```shell
+
+```
+
+```shell
+
+```
+
+```shell
+
+```
+
+```shell
+
+```
+
+```shell
+
+```
+
+```shell
+
+```
+
+```shell
+
+```
+
+```shell
+
+```
+
+```shell
+
+```
+
+```shell
+
+```
+
+```shell
+
+```
+
+```shell
+
+```
+
+```shell
+
+```
 
 ```shell
 
