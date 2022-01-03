@@ -403,7 +403,19 @@ docker run -i -t --name volume_auto \
 -v /root \
 ubuntu:14.04
 
-docker container inspect volume_auto
+docker container inspect volume_auto # 볼륨 이름은 임의로 생성
+```
+- `-v` 대신, 키밸류로 표현하는`--mount` 옵션 사용가능
+```shell
+docker run -i -t --name mount_option_1 \
+--mount type=volume,source=myvolume,target=/root \
+ubuntu:14.04
+```
+- `--mount`로 호스트 디렉터리를 내부에 마운트하는 경우 `type=bind`로 지정
+```shell
+docker run -i -t --name mount_option_2 \
+--mount type=bind,source=/home/wordpress_db,target=/home/testdir \
+ubuntu:14.04
 ```
 - 볼륨 전체 삭제
 ```shell
@@ -416,9 +428,14 @@ Deleted Volumes:
 Total reclaimed space: 671.4MB
 ```
 
-```shell
+- ***Stateless Container*** 
+  - 컨테이너가 삭제돼도 데이터는 보존
+  - 컨테이너 자체는 영속적 데이터와 무관 -> 상태가 없음 (Stateless)
+  - 상태를 결정하는 데이터는 외부로부터 제공받는다.
+  - 도커 사용시에 반드시 선택해야할 아키텍쳐
+  - 컨테이너 자체에 데이터를 보관 -> Stateful
 
-```
+## 도커 네트워크
 
 ```shell
 
