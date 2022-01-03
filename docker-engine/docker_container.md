@@ -343,36 +343,77 @@ ubuntu:14.04
 
 ### 도커 볼륨
 
+- 도커 볼륨 생성
 ```shell
+docker volume create --name myvolume
+```
+- 생성된 볼륨 조회
+```shell
+docker volume ls
+DRIVER    VOLUME NAME
+local     myvolume
+```
+- 볼륨을 사용하는 컨테이너 생성
+  - `[볼륨명]:[컨테이너의 공유 디렉터리]`
+  - `/root` 디렉터리에 파일쓰기
+```shell
+docker run -i -t --name myvolume_1 \
+-v myvolume:/root/ \
+ubuntu:14.04
 
+root@a2f018f53171:/# echo hello, volume! >> /root/volume
+```
+- 다른 컨테이너 생성시에 볼륨을 공유하면 동일한 `volume`파일 존재
+```shell
+docker run -i -t --name myvolume_2 \
+-v myvolume:/root/ \
+ubuntu:14.04
+
+root@b1ceef2356b4:/# cat /root/volume
+hello, volume!
 ```
 
 ```shell
-
+[myvolume] <---> [container1]
+           <---> [container2]
 ```
-
+- `docker inspect` : 볼륨 저장 위치 등 조회
+  - `docker inspect --type [구성요소타입] [구성요소이름]`
 ```shell
+docker inspect --type volume myvolume
+# docker [volume | image | container] inspect myvolume
+[
+    {
+        "CreatedAt": "2022-01-03T13:54:33Z",
+        "Driver": "local", # 볼륨이 쓰는 드라이버
+        "Labels": {}, # 볼륨을 구분하는 라벨
+        "Mountpoint": "/var/lib/docker/volumes/myvolume/_data", # 볼륨이 저장된 호스트의 저장위치
+        "Name": "myvolume",
+        "Options": {},
+        "Scope": "local"
+    }
+]
 
+ls /var/lib/docker/volumes/myvolume/_data
+volume
 ```
-
+- `docker volume create` 명령없이 `-v` 옵션으로 수행 가능.
 ```shell
+docker run -i -t --name volume_auto \
+-v /root \
+ubuntu:14.04
 
+docker container inspect volume_auto
 ```
-
+- 볼륨 전체 삭제
 ```shell
+docker volume prune
 
-```
-
-```shell
-
-```
-
-```shell
-
-```
-
-```shell
-
+WARNING! This will remove all local volumes not used by at least one container.
+Are you sure you want to continue? [y/N] y
+Deleted Volumes:
+...
+Total reclaimed space: 671.4MB
 ```
 
 ```shell
