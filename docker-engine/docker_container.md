@@ -437,44 +437,120 @@ Total reclaimed space: 671.4MB
 
 ## 도커 네트워크
 
-```shell
+### 브리지 네트워크 : 컨테이너 생성시 자동으로 연결되는 bridge0 브리지를 활용하도록 설정됨.
 
+- 172.17.0.x IP 대역을 순차적으로 컨테이너에 할당
+```shell
+docker network ls
+ETWORK ID     NAME                  DRIVER    SCOPE
+86a77a687a23   bridge                bridge    local
+393f89059b36   host                  host      local
+6f5994cf9b86   none                  null      local
 ```
 
 ```shell
+docker network inspect bridge
+[
+    {
+        "Name": "bridge",
+        ...
+        "IPAM": {
+            "Driver": "default",
+            "Options": null,
+            "Config": [
+                {
+                    "Subnet": "172.17.0.0/16",
+                    "Gateway": "172.17.0.1"
+                }
+            ]
+        },
+        ...
+        "Containers": {},
+        ...
+    }
+]
+```
+- 새로운 브리지 네트워크 생성
+```shell
+docker network create --driver bridge mybridge
+```
+- `--net` 옵션 : 컨테이너가 이 네트워크를 사용하도록 설정
+  - 새로운 IP 대역 할당 (172.20.0.2)
+```shell
+docker run -i -t --name mynetwork_container \
+--net mybridge \
+ubuntu:14.04
 
+root@6192af63fffd:/# ifconfig
+eth0      Link encap:Ethernet  HWaddr 02:42:ac:14:00:02
+          inet addr:172.20.0.2  Bcast:172.20.255.255  Mask:255.255.0.0
+          UP BROADCAST RUNNING MULTICAST  MTU:1500  Metric:1
+          RX packets:13 errors:0 dropped:0 overruns:0 frame:0
+          TX packets:0 errors:0 dropped:0 overruns:0 carrier:0
+          collisions:0 txqueuelen:0
+          RX bytes:1102 (1.1 KB)  TX bytes:0 (0.0 B)
+
+lo        Link encap:Local Loopback
+          inet addr:127.0.0.1  Mask:255.0.0.0
+          UP LOOPBACK RUNNING  MTU:65536  Metric:1
+          RX packets:0 errors:0 dropped:0 overruns:0 frame:0
+          TX packets:0 errors:0 dropped:0 overruns:0 carrier:0
+          collisions:0 txqueuelen:1000
+          RX bytes:0 (0.0 B)  TX bytes:0 (0.0 B)
+```
+- 네트워크 해제 및 연결
+```shell
+docker network disconnect mybridge mynetwork_container
+docker network connect mybridge mynetwork_container
+```
+- 서브넷, 게이트웨이, IP 할당 범위 등을 임의로 설정
+```shell
+docker network create --driver=bridge \
+--subnet=172.72.0.0/16 \
+--ip-range=172.72.0.0/24 \
+--gateway=172.72.0.1 
+my_custom_network
 ```
 
+### 호스트 네트워크
+- 호스트의 네트워크 환경을 그대로 사용 가능.
 ```shell
+docker run -i -t --name network_host \
+--net host \
+ubuntu:14.04
 
+root@docker-desktop:/#
 ```
-
+- 호스트와 동일한 네트워크
+  - 아파치 웹서버를 컨테이너에 띄우면 기본 포트인 80으로 바로 접근 가능해진다.
 ```shell
-
+root@docker-desktop:/# ifconfig
+br-37d8ffa457c0 Link encap:Ethernet  HWaddr 02:42:a7:44:c3:6c
+          inet addr:172.19.0.1  Bcast:172.19.255.255  Mask:255.255.0.0
+          UP BROADCAST MULTICAST  MTU:1500  Metric:1
+          RX packets:0 errors:0 dropped:0 overruns:0 frame:0
+          TX packets:0 errors:0 dropped:0 overruns:0 carrier:0
+          collisions:0 txqueuelen:0
+          RX bytes:0 (0.0 B)  TX bytes:0 (0.0 B)
+...
 ```
-
+### 논 네트워크
+- 네트워크를 사용하지 않음.
 ```shell
-
+docker run -i -t --name network_none \
+--net none \
+ubuntu:14.04
 ```
-
+- 로컬호스트 외에는 네트워크가 존재하지 않음.
 ```shell
-
-```
-
-```shell
-
-```
-
-```shell
-
-```
-
-```shell
-
-```
-
-```shell
-
+root@437fc7345616:/# ifconfig
+lo        Link encap:Local Loopback
+          inet addr:127.0.0.1  Mask:255.0.0.0
+          UP LOOPBACK RUNNING  MTU:65536  Metric:1
+          RX packets:0 errors:0 dropped:0 overruns:0 frame:0
+          TX packets:0 errors:0 dropped:0 overruns:0 carrier:0
+          collisions:0 txqueuelen:1000
+          RX bytes:0 (0.0 B)  TX bytes:0 (0.0 B)
 ```
 
 ```shell
