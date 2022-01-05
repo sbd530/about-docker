@@ -552,6 +552,121 @@ lo        Link encap:Local Loopback
           collisions:0 txqueuelen:1000
           RX bytes:0 (0.0 B)  TX bytes:0 (0.0 B)
 ```
+### 컨테이너 네트워크
+- `--net container:[다른 컨테이너 ID]` : 다른 컨테이터의 네트워크 환경 공유 
+  - 내부 IP를 새로 할당받지 않는다.
+  - 호스트에 veth 로 시작하는 가상 네트워크 인터페이스도 생성되지 않는다.
+```shell
+# -i -t -d : 내부에서 셸을 실행하지만 내부로 들어가지 않음.
+docker run -i -t -d --name network_container_1 ubuntu:14.04
+75eba45311220df6ec66f36f5000bbae88d34bdf7508e693d70440d05e37e4e6
+
+docker run -i -t -d --name network_container_2 \
+--net container:network_container_1 \
+ubuntu:14.04
+7b6fe649f30e5390261812909fa8bfb4ab7ba4285e1d1f64d3b066af741f84cf
+```
+- 두 컨테이너의 eth0 정보가 완전히 동일
+```shell
+docker exec network_container_1 ifconfig
+eth0      Link encap:Ethernet  HWaddr 02:42:ac:11:00:02
+          inet addr:172.17.0.2  Bcast:172.17.255.255  Mask:255.255.0.0
+          UP BROADCAST RUNNING MULTICAST  MTU:1500  Metric:1
+          RX packets:17 errors:0 dropped:0 overruns:0 frame:0
+          TX packets:0 errors:0 dropped:0 overruns:0 carrier:0
+          collisions:0 txqueuelen:0
+          RX bytes:1382 (1.3 KB)  TX bytes:0 (0.0 B)
+
+lo        Link encap:Local Loopback
+          inet addr:127.0.0.1  Mask:255.0.0.0
+          UP LOOPBACK RUNNING  MTU:65536  Metric:1
+          RX packets:0 errors:0 dropped:0 overruns:0 frame:0
+          TX packets:0 errors:0 dropped:0 overruns:0 carrier:0
+          collisions:0 txqueuelen:1000
+          RX bytes:0 (0.0 B)  TX bytes:0 (0.0 B)
+
+docker exec network_container_2 ifconfig
+eth0      Link encap:Ethernet  HWaddr 02:42:ac:11:00:02
+          inet addr:172.17.0.2  Bcast:172.17.255.255  Mask:255.255.0.0
+          UP BROADCAST RUNNING MULTICAST  MTU:1500  Metric:1
+          RX packets:17 errors:0 dropped:0 overruns:0 frame:0
+          TX packets:0 errors:0 dropped:0 overruns:0 carrier:0
+          collisions:0 txqueuelen:0
+          RX bytes:1382 (1.3 KB)  TX bytes:0 (0.0 B)
+
+lo        Link encap:Local Loopback
+          inet addr:127.0.0.1  Mask:255.0.0.0
+          UP LOOPBACK RUNNING  MTU:65536  Metric:1
+          RX packets:0 errors:0 dropped:0 overruns:0 frame:0
+          TX packets:0 errors:0 dropped:0 overruns:0 carrier:0
+          collisions:0 txqueuelen:1000
+          RX bytes:0 (0.0 B)  TX bytes:0 (0.0 B)
+```
+### 브리지 네트워크와 --net-alias
+- 특정 호스트 이름으로 컨테이너 여러 개에 접근 가능
+```shell
+docker run -i -t -d --name network_alias_container_1 \
+--net mybridge \
+--net-alias alicek106 \
+ubuntu:14.04
+
+docker run -i -t -d --name network_alias_container_2 \
+--net mybridge \
+--net-alias alicek106 \
+ubuntu:14.04
+
+docker run -i -t -d --name network_alias_container_3 \
+--net mybridge \
+--net-alias alicek106 \
+ubuntu:14.04
+```
+
+```shell
+docker inspect network_alias_container_1 | grep IPAddress
+"IPAddress": "172.20.0.3"
+docker inspect network_alias_container_2 | grep IPAddress
+"IPAddress": "172.20.0.4"
+docker inspect network_alias_container_3 | grep IPAddress
+"IPAddress": "172.20.0.5"
+```
+
+```shell
+docker run -i -t --name network_alias_ping \
+--net mybridge \
+ubuntu:14.04
+
+root@01fa5f357f1f:/#  ping -c 1 alicek106
+PING alicek106 (172.20.0.2) 56(84) bytes of data.
+64 bytes from network_alias_container_1.mybridge (172.20.0.2): icmp_seq=1 ttl=64 time=0.072 ms
+
+--- alicek106 ping statistics ---
+1 packets transmitted, 1 received, 0% packet loss, time 0ms
+rtt min/avg/max/mdev = 0.072/0.072/0.072/0.000 ms
+```
+
+```shell
+
+```
+
+```shell
+
+```
+
+```shell
+
+```
+
+```shell
+
+```
+
+```shell
+
+```
+
+```shell
+
+```
 
 ```shell
 
