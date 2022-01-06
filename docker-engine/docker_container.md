@@ -629,19 +629,25 @@ docker inspect network_alias_container_2 | grep IPAddress
 docker inspect network_alias_container_3 | grep IPAddress
 "IPAddress": "172.20.0.5"
 ```
-
+- 컨테이너 3개의 IP로 각각 ping 전달됨
+  - 라운드로빈 방식으로 IP를 결정
+  - alicek106라는 설정한 호스트 이름을 --net-alias 옵션으로 alicek106로 설정한 컨테이너로 resolve 한다.
 ```shell
 docker run -i -t --name network_alias_ping \
 --net mybridge \
 ubuntu:14.04
 
 root@01fa5f357f1f:/#  ping -c 1 alicek106
-PING alicek106 (172.20.0.2) 56(84) bytes of data.
+...
 64 bytes from network_alias_container_1.mybridge (172.20.0.2): icmp_seq=1 ttl=64 time=0.072 ms
 
---- alicek106 ping statistics ---
-1 packets transmitted, 1 received, 0% packet loss, time 0ms
-rtt min/avg/max/mdev = 0.072/0.072/0.072/0.000 ms
+root@01fa5f357f1f:/#  ping -c 1 alicek106
+...
+64 bytes from network_alias_container_2.mybridge (172.20.0.4): icmp_seq=1 ttl=64 time=0.071 ms
+
+root@01fa5f357f1f:/#  ping -c 1 alicek106
+...
+64 bytes from network_alias_container_3.mybridge (172.20.0.3): icmp_seq=1 ttl=64 time=0.087 ms
 ```
 
 ```shell
