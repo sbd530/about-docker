@@ -651,27 +651,56 @@ root@01fa5f357f1f:/#  ping -c 1 alicek106
 ```
 
 ```shell
+[도커내장DNS] -> [ping alicek106] -> [--net-alias=alicek106]
+                                -> [--net-alias=alicek106]
+                                -> [--net-alias=alicek106]
+```
+- dig : DNS 로 도메인 이름에 대응하는 IP 조회하는 툴
+```shell
+# network_alias_ping 내부
+apt-get update
+apt-get install dnsutils
+# dig 명령어 반복하면 반환되는 IP 리스트 순서가 바뀐다
+dig alicek106
 
+alicek106.              600     IN      A       172.20.0.3
+alicek106.              600     IN      A       172.20.0.4
+alicek106.              600     IN      A       172.20.0.2
+```
+
+### MacVLAN 네트워크
+
+- MacVLAN : 호스트 네이워크 인터페이스 카드를 가상화하여 물리 네트워크를 컨테이너에게 동일하게 제공
+```shell
+공유기 네트워크 : 192.168.0.0/24
+서버 1 (node01) : 192.168.0.50
+서버 2 (node02) : 192.168.0.51
 ```
 
 ```shell
+# node01
+docker network create -d macvlan --subnet-192.168.0.0/24 \
+--ip-range=192.168.0.64/28 --gateway=192.168.0.1 \
+-o macvlan_mode=bridge -o parent=eth0 my_macvlan
 
+#node02
+docker network create -d macvlan --subnet-192.168.0.0/24 \
+--ip-range=192.168.0.128/28 --gateway=192.168.0.1 \
+-o macvlan_mode=bridge -o parent=eth0 my_macvlan
+```
+- MacVLAN 네트워크를 사용하는 컨테이너 생성
+```shell
+docker run -it --name c1 --hostname c1 \
+--network my_vacvlan ubuntu:14.04
+
+ip a
 ```
 
 ```shell
+docker run -it --name c2 --hostname c2 \
+--network my_vacvlan ubuntu:14.04
 
-```
-
-```shell
-
-```
-
-```shell
-
-```
-
-```shell
-
+ip a
 ```
 
 ```shell
