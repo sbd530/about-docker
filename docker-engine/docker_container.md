@@ -703,6 +703,282 @@ docker run -it --name c2 --hostname c2 \
 ip a
 ```
 
+## 컨테이너 로깅
+### json-file 로그
+```shell
+# -d 백그라운드 모드로 컨테이너 생성
+docker run -d --name mysql -e MYSQL_ROOT_PASSWORD=1234 mysql:5.7
+```
+- 컨테이너 로그 확인
+```shell
+docker logs mysql
+```
+
+```shell
+# -e 환경변수 옵션 없이 생성
+docker run -d --name no_passwd_mysql mysql:5.7
+docker ps
+# no_passwd_mysql 조회되지 않음
+docker start no_passwd_mysql
+docker ps
+# 마찬가지로 no_passwd_mysql 조회되지 않음
+docker ps --format "table {{.ID}}\t{{.Status}}\t{{.Ports}}\t{{.Names}}"
+CONTAINER ID   STATUS         PORTS                 NAMES
+1ed09db73aa1   Up 8 minutes   3306/tcp, 33060/tcp   mysql
+```
+- docker logs 로 문제를 확인
+  - `--since [UNIX TIME]`
+  - `-t` : 타임스탬프
+  - `-f` : 로그를 스트림으로 출력 (실시간 로그)
+```shell
+# docker logs --since 1474765879 mysql
+# docker logs no_passwd_mysql
+# docker logs --tail 5 no_passwd_mysql
+# docker logs --tail 5 -t no_passwd_mysql
+docker logs --tail 5 -f -t no_passwd_mysql
+
+2022-01-08T08:14:19.217116400Z 2022-01-08 08:14:19+00:00 [ERROR] [Entrypoint]: Database is uninitialized and password option is not specified
+2022-01-08T08:14:19.217136000Z     You need to specify one of the following:
+2022-01-08T08:14:19.217138700Z     - MYSQL_ROOT_PASSWORD
+2022-01-08T08:14:19.217140700Z     - MYSQL_ALLOW_EMPTY_PASSWORD
+2022-01-08T08:14:19.217142700Z     - MYSQL_RANDOM_ROOT_PASSWORD
+
+# ^C로 탈출
+```
+- `-i -t` 옵션으로 입출력 설정한 컨테이너의 입출력 내용도 확인 가능
+```shell
+docker run -i -t --name logstest ubuntu:14.04
+# internal env
+root@785bb4031c07:/# echo test!
+test!
+```
+```shell
+docker logs logstest
+root@785bb4031c07:/# echo test!
+test!
+```
+- 기본적으로 컨테이너 로그는 JSON 형태로 도커 내부에 저장된다.
+```shell
+cat /var/lib/docker/containers/${CONTAINER_ID}/${CONTAINER_ID}-json.log
+```
+- 로그 파일이 커지면 호스트 저장공간을 계속 차지하게 된다.
+  - 파일 최대 크기와 파일 개수 지정
+```shell
+docker run -it \
+--log-opt max-size=10k --log-opt max-file=3 \
+--name log-test ubuntu:14.04
+```
+- 기본 로깅 드라이버는 json-file
+- 도커 데몬 시작 옵션에서 --log-driver 옵션으로 로깅 드라이버 변경 가능
+```shell
+DOCKER_OPTS="--log-driver=syslog"
+
+DOCKER_OPTS="--log-opt max-size=10k --log-opt max-file=3"
+```
+
+### syslog 로그
+
+```shell
+docker run -d --name syslog_container \
+--log-driver=syslog \
+ubuntu:14.04
+echo syslogtest
+```
+- syslog 로깅 드라이버는 기본적으로 로컬호스트의 syslog 에 저장
+```shell
+# ubuntu OS example
+tail /var/log/syslog
+```
+- syslog 를 리모트 서버에 설치하고 로그 옵션을 추가하여 로그를 리모트 서버로 전송 가능
+  - `rsyslog`
+```shell
+# 서버 호스트 : 192.168.55.217
+# 클라이언트 호스트 : 192.168.55.217
+docker run -i -t \
+-h rsyslog \
+--name rsyslog_server \
+-p 514:514 -p 514:514/udp \
+ubuntu:14.04
+```
+- rsyslog 설정에서 주석 처리를 없애고 rsyslog 재시작
+```shell
+root@rsyslog:/etc# vi /etc/rsyslog.conf
+...
+# provides UDP syslog reception
+$ModLoad imudp
+$UDPServerRun 514
+
+# provides TCP syslog reception
+$ModLoad imtcp
+$InputTCPServerRun 514
+...
+```
+```shell
+root@rsyslog:/# service rsyslog restart
+ * Stopping enhanced syslogd rsyslogd                               [ OK ]
+ * Starting enhanced syslogd rsyslogd                               [ OK ]
+```
+```shell
+docker run -i -t \
+--log-driver=syslog \
+--log-opt syslog-address=tcp://192.168.55.217:514 \
+--log-opt tag="mylog" \
+ubuntu:14.04
+```
+```shell
+root@rsyslog:/# tail /var/log/syslog
+```
+- --log-opt 옵션으로 syslog-facility 를 쓰면 로그 저장 파일을 변경할 수 있다.
+  - 기본적으로는 daemon 으로 설정
+```shell
+docker run -i -t \
+--log-driver syslog \
+--log-opt syslog-address=tcp://192.168.55.217:514 \
+--log-opt tag="maillog" \
+-- log-opt syslog-facility="mail" \ 
+ubuntu:14.04
+```
+- rsyslog 서버 컨테이너에 새로운 로그 파일이 생성됨.
+```shell
+root@rsyslog:/# cd /var/log/
+mail.log
+```
+
+### fluentd 로깅
+
+- JSON 데이터 포맷
+- AWS S3, HDFS, MongoDB 등 다양한 저장소에 저장 가능
+
+```shell
+# 도커 서버 : 192.168.55.217
+# fluentd 서버 : 192.168.55.217
+# MongoDB 서버 : 192.168.55.217
+# docker pull mongo
+docker run --name mongoDB -d -p 27017:27017 mongo
+```
+- fluent.conf 파일 저장 : 로그 설정 정보
+```shell
+<source>
+  @type forward
+</source>
+
+<match docker.**>
+  @type mongo
+  database nginx
+  collection access
+  host 192.168.55.217
+  port 27017
+  flush_interval 10s
+  # user alicek106
+  # password mypw
+</match>
+```
+- fluent.conf 파일이 저장된 디렉터리에서 실행
+```shell
+# Dockerhub 의 fluentd 이미지에는 mongo 에 연결하는 플러그인이 없음
+# -> alicek106/fluentd:mongo
+docker run -d --name fluentd -p 24224:24224 \
+-v $(pwd)/fluent.conf:/fluentd/etc/fluent.conf \
+-e FLUENTD_CONF=fluent.conf \
+alicek106/fluentd:mongo
+```
+- 로그를 남기는 임의의 컨테이너 생성
+```shell
+docker run -p 80:80 -d \
+--log-driver=fluentd \
+--log-opt fluentd-address=192.168.55.217:24224 \
+--log-opt tag=docker.nginx.webserver \
+nginx
+```
+- MongoDB 에 저장된 로그 조회
+```shell
+docker exec -it mongoDB mongo
+# MongoDB shell
+> show dbs
+admin   0.000GB
+config  0.000GB
+local   0.000GB
+nginx   0.000GB
+> use nginx
+switched to db nginx
+> show collections
+access
+> db['access'].find()
+...
+{
+  "_id" : ObjectId("61d962bdc98aa9000a539942"), 
+  "log" : "2022/01/08 10:08:51 [notice] 1#1: using the \"epoll\" event method", 
+  "container_id" : "1ad5872b94a1dbd997be9f3bc015b28d23d6f32e5c57f60f13f986408373dcbd", 
+  "container_name" : "/priceless_payne", "source" : "stderr", 
+  "time" : ISODate("2022-01-08T10:08:51Z")
+}
+...
+```
+### 아마존 클라우드워치 로그 (필요시)
+
+1. 클라우드워치에 해당하는 IAM 권한 생성
+2. 로그 그룹 생성
+3. 로그 그룹에 로그 스트림 생성
+4. 클라우드워치의 IAM 권한을 사용할 수 있는 EC2 인스턴스 생성과 로그 전송
+
+## 컨테이너 자원 할당 제한
+
+```shell
+docker inspect rsyslog_server
+...
+"HostConfig": {
+  ...
+  "KernelMemory": 0,
+  "KernelMemoryTCP": 0,
+  "MemoryReservation": 0,
+  "MemorySwap": 0,
+  "MemorySwappiness": null,
+  "OomKillDisable": false,
+  "PidsLimit": null,
+  "Ulimits": null,
+  "CpuCount": 0,
+  "CpuPercent": 0,
+  "IOMaximumIOps": 0,
+  "IOMaximumBandwidth": 0,
+  ...
+}
+...
+```
+- `run` 명령에서 설정한 자원 제한 변경 
+```shell
+docker update [변경할 자원제한] [컨테이너 이름]
+```
+
+### 컨테이너 메모리 제한
+
+- 최소 메모리는 4MB. 
+- 너무 작게 잡으면 메모리가 부족하여 컨테이너가 실행되지 않는다.
+
+```shell
+# m = megabyte, g = gigabyte
+docker run -d --memory="1g" --name memory_1g nginx
+docker inspect memory_1g | grep \"Memory\"
+# (windows) docker inspect memory_1g | find "Memory"
+            "Memory": 1073741824,
+```
+```shell
+
+```
+```shell
+
+```
+```shell
+
+```
+```shell
+
+```
+```shell
+
+```
+```shell
+
+```
 ```shell
 
 ```
