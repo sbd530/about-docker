@@ -961,24 +961,39 @@ docker inspect memory_1g | grep \"Memory\"
 # (windows) docker inspect memory_1g | find "Memory"
             "Memory": 1073741824,
 ```
+- 기본적으로 Swap 메모리는 메모리의 2배로 설정.
+- 사용자 지정도 가능
 ```shell
-
+docker run -it --name swap_500m \
+--memory=200m \
+--memory-swap=500m
+ubuntu:14.04
 ```
-```shell
 
+### 컨테이너 CPU 제한
+
+#### --cpu-shares
+
+- 시스템에 존재하는 CPU 를 어느 비중만큼 share 할 것인지 명시
+  - `1024` : CPU 할당에서 1의 비중
+```shell
+docker run -i -t --name cpu_share \
+--cpu-shares 1024 \
+ubuntu:14.04
+docker run -i -t --name cpu_share \
+--cpu-shares 512 \
+ubuntu:14.04
+# 2 : 1 의 비율. 66%, 33%
+ps aux
 ```
-```shell
 
-```
-```shell
+#### --cpuset-cpu
 
-```
-```shell
+- 호스트에 CPU 가 복수개 있을 때 컨테이너가 특정 CPU 만 사용하도록 설정
 
-```
 ```shell
-
-```
-```shell
-
+docker run -d --name cpuset_2 \
+--cpuset-cpus=2 \
+alicek106/stress \
+stress --cpu 1
 ```
