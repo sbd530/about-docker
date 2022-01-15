@@ -150,3 +150,188 @@ Enter pass phrase for ca-key.pem:
 
 #### 2. 클라이언트 측에서 사용할 파일 생성
 
+- 클라이언트 측의 키 파일과 인증 요청 파일을 생성하고, extfile.cnf 파일에 extendedKeyUsage 항목을 추가한다.
+
+```shell
+openssl genrsa -out key.pem 4096
+Generating RSA private key, 4096 bit long modulus (2 primes)
+......++++
+..................................................................................................................++++
+e is 65537 (0x010001)
+openssl req -subj '/CN=client' -new -key key.pem -out client.csr
+echo extendedKeyUsage = clientAuth > extfile.cnf
+```
+
+- 클라이언트 측의 인증서를 생성한다.
+
+```shell
+openssl x509 -req -days 30000 -sha256 -in client.csr -CA ca.pem -CAkey ca-key.pem -CAcreateserial -out cert.pem -extfile extfile.cnf
+```
+
+- 다음같이 파일이 만들어졌느지 확인한다.
+
+```shell
+ls
+ca-key.pem  ca.srl    client.csr   key.pem          server-key.pem
+ca.pem      cert.pem  extfile.cnf  server-cert.pem  server.csr
+```
+
+- 생성된 파일의 쓰기 권한을 삭제해 읽기 전용 파일로 만든다.
+
+```shell
+chmod -v 0400 ca-key.pem key.pem server-key.pem ca.pem server-cert.pem cert.pem
+```
+
+- 도커 데몬의 설정파일이 존재하는 ~/.docker 로 도커 데몬 측에서 필요한 파일을 옮긴다. 필수는 아니지만 필요한 파일을 모아두면 관리가 용이하다.
+
+```shell
+cp {ca,server-cert,server-key,cert,key}.pem ~/.docker
+```
+
+- TLS 보안을 적용하여 도커를 실행한다.
+
+```shell
+dockerd --tlsverify \
+-- tlscacert=/root/.docker/ca.pem \
+--tlscert=/root/.docker/server-cert.pem \
+--tlskey=/root/.docker/server-key.pem \
+-H=0.0.0.0:2376 \
+-H unix:///var/run/docker.sock
+```
+
+- 다른 도커 호스테이서 도커 클라이언트에 -H 를 추가해 보안이 적용된 도커를 제어한다.
+
+```shell
+docker -H 192.168.55.217:2376 \
+-- tlscacert=/root/.docker/ca.pem \
+--tlscert=/root/.docker/cert.pem \
+--tlskey=/root/.docker/key.pem \
+--tlsverify verison
+```
+
+- 모든 명령어마다 위같은 설정을 하긴 귀찮으므로, 환경변수를 저장한다.
+  - `export` 는 셸이 종료되면 사라진다.
+
+```shell
+# 도커 데몬 인증 파일 위치
+export DOCKER_CERT_PATH="/root/.docker"
+# TLS 인증을 사용할지를 설정
+export DOCKER_TLS_VERIFY=1
+
+docker -H 192.168.55.217:2376 version
+```
+
+```shell
+# 환경변수 항상 적용
+vi ~/.bashrc
+...
+export DOCKER_CERT_PATH="/root/.docker"
+export DOCKER_TLS_VERIFY=1
+...
+```
+
+- curl 로 Remote API 를 사용하려면 다음같은 플래그를 추가한다.
+
+```shell
+curl https://192.168.55.217/version \
+--cert ~/.docker/cert.pem \
+--key ~/.docker/key.pem \
+--cacert ~/.docker/ca.pem
+```
+
+### 도커 스토리지 드라이버 변경: ---storage-diver
+
+## 도커 데몬 모니터링
+
+### 도커 데몬 디버그 모드
+
+- 도커 데몬을 디버그 옵셥으로 실행
+
+```shell
+dockerd -D
+```
+
+### events stats, system df
+
+**events**
+
+- 도커 데몬에 어떤 일이 일어나고 있는지 실시간 로그를 조회
+
+```shell
+docker events
+docker system events
+```
+
+- 이벤트 발생
+
+```shell
+docker pull ubuntu:14.04
+```
+
+```shell
+docker events
+2022-01-15T18:08:41.991529400+09:00 image pull ubuntu:14.04 (name=ubuntu)
+
+```
+
+- events 명령어에 필터 추가
+
+```shell
+docker events --filter 'type=image'
+```
+
+**stats**
+
+- 실행 중인 모든 컨테이너의 자원 사용량을 스트림으로 출력
+  - 컨테이너들의 CPU, 메모리 제한 및 사용량, 네트워크 입출력, 블록 입출력 정보
+
+```shell
+docker stats
+CONTAINER ID   NAME         CPU %     MEM USAGE / LIMIT   MEM %     NET I/O       BLOCK I/O   PIDS
+1e78c2ed39f5   myregistry   0.01%     5.246MiB / 25GiB    0.02%     1.66kB / 0B   0B / 0B     10
+```
+
+- 스트림이 아닌, 한 번만 출력
+
+```shell
+docker stats --no-stream
+```
+
+**system df**
+
+- 사용중인 이미지, 컨테이너, 로컬 볼륨의 총 개수 및 사용 중인 개수, 크기, 삭제 후 확보 가능한 공간을 출력
+
+```shell
+docker system df
+TYPE            TOTAL     ACTIVE    SIZE      RECLAIMABLE
+Images          26        13        8.125GB   5.209GB (64%)
+Containers      40        1         49.9MB    49.9MB (100%)
+Local Volumes   12        12        999.5MB   0B (0%)
+Build Cache     84        0         396.7MB   396.7MB
+```
+
+### CAdvisor
+
+- 구글이 만든 컨테이너 모니터링 도구
+- 컨테이너로서 설치하고, 컨테이너 별 실시간 자원 사용량 및 도커 모니터링 정보를 시각화
+- 오픈소스. 깃허브, 도커허브.
+- 도커데몬의 정보를 가져올 수 있는 호스트의 모든 디렉터리를 CAdvisor 컨테이너에 볼륨으로서 마운트.
+
+```shell
+docker run \
+--volume=/:/rootfs:ro \
+--volume=/var/run:/var/run:ro \
+--volume=/sys:/sys:ro \
+--volume=/var/lib/docker/:/var/lib/docker.ro \
+--volume=/dev/disk/:/dev/disk:ro \
+--publish=8080:8080 \
+--detach=true \
+--name=cadvisor \
+google/cadvisor:latest
+```
+
+### Remote API 라이브러리를 이용한 도커 사용
+
+- 도커를 제어하고 싶을 경우 Remote API 를 래핑해서 사용할 수 있다.
+- 다양한 언어의 라이브러리를 오픈소스로 사용할 수 있다.
+
